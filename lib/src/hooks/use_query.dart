@@ -114,21 +114,33 @@ UseQueryResult<TData, TError> useQuery<TData, TError>(
     ],
   );
   final client = useQueryClient();
+  final currentHashCode = client.queryCache.queries[queryKey.lock]?.hashCode;
+  final prevHashCode = usePrevious(currentHashCode);
+  var observerRef = useRef<Observer<TData, TError>?>(null);
+
   final observer = useMemoized<Observer<TData, TError>>(
-    () => Observer<TData, TError>(
-      queryKey,
-      fetcher,
-      client: client,
-      options: options,
-    ),
-    // The first value is to make sure that the observer
+    () {
+      if (prevHashCode == null && observerRef.value != null) {
+        return observerRef.value!;
+      }
+
+      observerRef.value = Observer<TData, TError>(
+        queryKey,
+        fetcher,
+        client: client,
+        options: options,
+      );
+
+      return observerRef.value!;
+    },
+    // The fst value is to make sure that the observer
     // is rebuilt when query key changes.
     //
     // The second value is to make sure that the observer
     // is rebuilt when query itself changes in the cache, typically
     // when `QueryClient.removeQueries` is called, followed by
     // `QueryClient.setQueryData` (creating a new query in the cache)
-    [queryKey.lock, client.queryCache.queries[queryKey.lock]?.hashCode],
+    [queryKey.lock, currentHashCode],
   );
 
   // This subscribes to the observer
